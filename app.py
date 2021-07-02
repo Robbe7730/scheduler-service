@@ -5,9 +5,9 @@ web.py: entry point of the service
 from enum import Enum, auto
 
 from dateutil import parser
-from flask import Flask, request
+from flask import Flask, request, jsonify
 
-from helpers import error
+from helpers import error, generate_uuid
 
 app = Flask(__name__)
 
@@ -19,6 +19,23 @@ class ActionStatus(Enum):
     COMPLETED = auto()
     FAILED = auto()
     POTENTIAL = auto()
+
+    def __str__(self):
+        if self == ActionStatus.ACTIVE:
+            return 'active'
+        if self == ActionStatus.COMPLETED:
+            return 'completed'
+        if self == ActionStatus.FAILED:
+            return 'failed'
+        if self == ActionStatus.POTENTIAL:
+            return 'potential'
+        return 'invalid status'
+
+    def to_json(self):
+        """
+        toJSON: Make ActionStatus JSON serializable
+        """
+        return str(self)
 
 class InvalidDataException(Exception):
     """
@@ -34,7 +51,7 @@ class InvalidDataException(Exception):
         """
         return error(self.message)
 
-class Reservation: #pylint: disable=R0903
+class Reservation:
     """
     A scheduled reservation
     """
@@ -45,6 +62,7 @@ class Reservation: #pylint: disable=R0903
             target_method=None,
             target_url_template=None
         ):
+        self.id = generate_uuid()
         self.start_time = start_time
         self.end_time = end_time
         self.target_method = target_method
@@ -70,7 +88,9 @@ class Reservation: #pylint: disable=R0903
                 f'Expected type \'reservation\', but got \'{data_type}\''
             )
 
-        start_time_str = data.get("startTime", "no time given")
+        attributes = data.get('attributes', {})
+
+        start_time_str = attributes.get("startTime", "no time given")
         try:
             start_time = parser.parse(start_time_str)
         except ValueError as e:
@@ -78,7 +98,7 @@ class Reservation: #pylint: disable=R0903
                 f"Invalid startTime ({start_time_str})"
             ) from e
 
-        end_time_str = data.get("endTime", "no time given")
+        end_time_str = attributes.get("endTime", "no time given")
         try:
             end_time = parser.parse(end_time_str)
         except ValueError as e:
@@ -89,8 +109,8 @@ class Reservation: #pylint: disable=R0903
         if end_time <= start_time:
             raise InvalidDataException("Start time must be before end time")
 
-        if "target" in data:
-            target = data["target"]
+        if "target" in attributes:
+            target = attributes["target"]
             method = target.get("httpMethod", "GET")
 
             if "urlTemplate" not in target:
@@ -101,6 +121,25 @@ class Reservation: #pylint: disable=R0903
 
         return cls(start_time, end_time)
 
+    def as_jsonapi_response(self):
+        """
+        as_jsonapi_response: Returns the reservation as a JSON:API response
+        """
+        return {
+            'type': 'reservation',
+            'id': str(self.id),
+            'attributes': {
+                'startTime': self.start_time.isoformat(),
+                'endTime': self.end_time.isoformat(),
+                'target': {
+                    'httpMethod': self.target_method,
+                    'urlTemplate': self.target_url_template
+                },
+                'actionStatus': self.action_status.to_json()
+            }
+        }
+
+
 @app.route('/', methods=['POST'])
 def schedule():
     """
@@ -108,8 +147,8 @@ def schedule():
     """
 
     try:
-        Reservation.from_json_data(request.json)
+        reservation = Reservation.from_json_data(request.json)
     except InvalidDataException as e:
         return e.as_jsonapi_error()
 
-    return "OK"
+    return jsonify(reservation.as_jsonapi_response()), 201
