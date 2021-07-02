@@ -11,12 +11,17 @@ jsonapi-requests==0.6.2
 lazy-object-proxy==1.6.0
 MarkupSafe==2.0.1
 mccabe==0.6.1
+mypy==0.910
+mypy-extensions==0.4.3
 pylint==2.9.3
 python-dateutil==2.8.1
 requests==2.25.1
 six==1.16.0
 tenacity==7.0.0
 toml==0.10.2
+types-python-dateutil==0.1.4
+types-setuptools==57.0.0
+typing-extensions==3.10.0.0
 urllib3==1.26.6
 Werkzeug==2.0.1
 wrapt==1.12.1

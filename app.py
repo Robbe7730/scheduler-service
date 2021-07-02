@@ -2,10 +2,12 @@
 web.py: entry point of the service
 """
 
+from __future__ import annotations
+
 from enum import Enum, auto
 
 from dateutil import parser
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request, Response
 
 from helpers import error, generate_uuid
 
@@ -31,9 +33,11 @@ class ActionStatus(Enum):
             return 'potential'
         return 'invalid status'
 
-    def to_json(self):
+    def to_json(self) -> str:
         """
-        toJSON: Make ActionStatus JSON serializable
+        to_json: Make ActionStatus JSON serializable
+
+        :returns: The JSON (string) representation of the ActionStatus
         """
         return str(self)
 
@@ -45,9 +49,11 @@ class InvalidDataException(Exception):
         self.message = message
         super().__init__(message)
 
-    def as_jsonapi_error(self):
+    def as_jsonapi_error(self) -> Response:
         """
         as_jsonapi_error: Return the exception as a JSON:API error
+
+        :returns: The stringified JSON:API error
         """
         return error(self.message)
 
@@ -70,15 +76,16 @@ class Reservation:
         self.action_status = ActionStatus.POTENTIAL
 
     @classmethod
-    def from_json_data(cls, json_data):
+    def from_json_data(cls, json_data) -> Reservation:
         """
         from_json_data: Create a Reservation from a json request
 
-        :throws:
-            InvalidDataException if the data is an invalid reservation
+        :returns: The created reservation
+
+        :raises InvalidDataException: if the data is an invalid reservation
         """
         if json_data is None or "data" not in json_data:
-            return error('No JSON data found')
+            raise InvalidDataException('No JSON data found')
 
         data = json_data["data"]
 
@@ -121,9 +128,11 @@ class Reservation:
 
         return cls(start_time, end_time)
 
-    def as_jsonapi_response(self):
+    def as_jsonapi_response(self) -> dict:
         """
         as_jsonapi_response: Returns the reservation as a JSON:API response
+
+        :returns: A JSON:API compliant response dict
         """
         return {
             'type': 'reservation',
@@ -141,14 +150,15 @@ class Reservation:
 
 
 @app.route('/', methods=['POST'])
-def schedule():
+def schedule() -> Response:
     """
     schedule: the main route of the service
-    """
 
+    :returns: A response to this request
+    """
     try:
         reservation = Reservation.from_json_data(request.json)
     except InvalidDataException as e:
         return e.as_jsonapi_error()
 
-    return jsonify(reservation.as_jsonapi_response()), 201
+    return jsonify(reservation.as_jsonapi_response(), 201)

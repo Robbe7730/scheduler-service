@@ -2,6 +2,9 @@
 
 pylint *.py || exit 1
 
+mypy --install-types --non-interactive
+mypy --ignore-missing-imports *.py || exit 1
+
 docker build -t robbe7730/scheduler-service . || exit 1
 
 pushd ../sproeierserver-backend/
